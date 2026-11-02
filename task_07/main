@@ -1,0 +1,230 @@
+import os
+
+
+def load_catalog(filename):
+    books = {}
+
+    try:
+        with open(filename, encoding="utf-8") as catalog_file:
+            for row_number, raw_row in enumerate(catalog_file, 1):
+                row = raw_row.strip()
+                if row == "":
+                    continue
+
+                parts = [part.strip() for part in row.split(";")]
+                if len(parts) != 4:
+                    print(f"Предупреждение в строке {row_number}: неверное количество полей.")
+                    continue
+
+                book_id_text, name, price_text, stock_text = parts
+                try:
+                    book_id, price, stock = map(
+                        int, (book_id_text, price_text, stock_text)
+                    )
+                except ValueError:
+                    print(f"Предупреждение в строке {row_number}: числовые поля заполнены неверно.")
+                    continue
+
+                invalid_values = book_id < 1 or price <= 0 or stock < 0 or name == ""
+                if invalid_values:
+                    print(f"Предупреждение в строке {row_number}: значения вне допустимого диапазона.")
+                    continue
+                if book_id in books:
+                    print(f"Предупреждение в строке {row_number}: повторяется ID {book_id}.")
+                    continue
+
+                books[book_id] = (name, price, stock)
+    except FileNotFoundError:
+        print("Файл catalog.txt не найден. Работа начата с пустым каталогом.")
+        return {}
+
+    print(f"Каталог загружен из catalog.txt. Количество книг: {len(books)}")
+    return books
+
+
+def save_catalog(filename, catalog):
+    try:
+        with open(filename, "w", encoding="utf-8") as catalog_file:
+            for book_id, book_data in sorted(catalog.items()):
+                name, price, stock = book_data
+                catalog_file.write(";".join(map(str, (book_id, name, price, stock))) + "\n")
+    except OSError as error:
+        print(f"Ошибка записи файла catalog.txt: {error}")
+        return False
+
+    print("Изменения записаны в catalog.txt.")
+    return True
+
+
+def print_catalog(catalog):
+    print("\nКаталог книг:")
+    if len(catalog) == 0:
+        print("В каталоге пока нет книг.")
+        return
+
+    for book_id, (name, price, stock) in sorted(catalog.items()):
+        stock_text = "нет в наличии" if stock == 0 else f"остаток: {stock}"
+        print(f"{book_id}. {name} — {price} руб., {stock_text}")
+
+
+def add_book(catalog):
+    book_id_text = input("ID новой книги — целое число от 1 (например, 6): ")
+    try:
+        book_id = int(book_id_text)
+    except ValueError:
+        print("Ошибка: ID должен быть целым числом.")
+        return False
+
+    if book_id < 1:
+        print("Ошибка: ID должен начинаться с 1.")
+        return False
+    if catalog.get(book_id) is not None:
+        print(f"Ошибка: ID {book_id} уже занят другой книгой.")
+        return False
+
+    name = input("Название книги — текст без точки с запятой: ").strip()
+    price_text = input("Цена — целое число больше 0 (например, 590): ")
+    stock_text = input("Количество — целое число от 0 (например, 3): ")
+
+    if name == "" or ";" in name:
+        print("Ошибка: укажите непустое название без точки с запятой.")
+        return False
+
+    try:
+        price, stock = map(int, (price_text, stock_text))
+    except ValueError:
+        print("Ошибка: цена и количество должны быть целыми числами.")
+        return False
+
+    if price <= 0:
+        print("Ошибка: цена должна быть больше 0.")
+        return False
+    if stock < 0:
+        print("Ошибка: количество должно быть не меньше 0.")
+        return False
+
+    catalog[book_id] = (name, price, stock)
+    print(f"Добавлена книга «{name}» с ID {book_id}.")
+    return True
+
+
+def delete_book(catalog):
+    try:
+        book_id = int(input("ID книги для удаления — целое число: "))
+    except ValueError:
+        print("Ошибка: ID должен быть целым числом.")
+        return False
+
+    removed_book = catalog.pop(book_id, None)
+    if removed_book is None:
+        print(f"Ошибка: книга с ID {book_id} не найдена.")
+        return False
+
+    print(f"Книга «{removed_book[0]}» удалена из каталога.")
+    return True
+
+
+def change_price(catalog):
+    try:
+        book_id = int(input("ID книги — целое число: "))
+    except ValueError:
+        print("Ошибка: ID должен быть целым числом.")
+        return False
+
+    if book_id not in catalog:
+        print(f"Ошибка: в каталоге нет книги с ID {book_id}.")
+        return False
+
+    try:
+        new_price = int(input("Новая цена — целое число больше 0: "))
+    except ValueError:
+        print("Ошибка: цена должна быть целым числом.")
+        return False
+
+    if new_price <= 0:
+        print("Ошибка: цена должна быть больше 0.")
+        return False
+
+    name, current_price, stock = catalog[book_id]
+    catalog[book_id] = (name, new_price, stock)
+    print(f"Для книги «{name}» цена изменена: {current_price} → {new_price} руб.")
+    return True
+
+
+def change_quantity(catalog):
+    try:
+        book_id = int(input("ID книги — целое число: "))
+    except ValueError:
+        print("Ошибка: ID должен быть целым числом.")
+        return False
+
+    if book_id not in catalog:
+        print(f"Ошибка: в каталоге нет книги с ID {book_id}.")
+        return False
+
+    try:
+        new_stock = int(input("Новое количество — целое число от 0: "))
+    except ValueError:
+        print("Ошибка: количество должно быть целым числом.")
+        return False
+
+    if new_stock < 0:
+        print("Ошибка: количество должно быть не меньше 0.")
+        return False
+
+    name, price, current_stock = catalog[book_id]
+    catalog[book_id] = (name, price, new_stock)
+    print(f"Для книги «{name}» количество изменено: {current_stock} → {new_stock}.")
+    return True
+
+
+def show_menu():
+    print(
+        "\nУправление каталогом:\n"
+        "1 — показать все книги\n"
+        "2 — добавить новую книгу\n"
+        "3 — удалить книгу\n"
+        "4 — изменить цену\n"
+        "5 — изменить количество\n"
+        "0 — сохранить каталог и завершить работу"
+    )
+
+
+def run_store(filename):
+    catalog = load_catalog(filename)
+    actions = {
+        1: print_catalog,
+        2: add_book,
+        3: delete_book,
+        4: change_price,
+        5: change_quantity,
+    }
+
+    while True:
+        show_menu()
+        try:
+            command = int(input("Номер команды — целое число от 0 до 5: "))
+        except ValueError:
+            print("Ошибка: номер команды должен быть целым числом.")
+            continue
+
+        if command == 0:
+            save_catalog(filename, catalog)
+            print("Работа с книжным каталогом завершена. До свидания!")
+            break
+
+        action = actions.get(command)
+        if action is None:
+            print("Ошибка: выберите команду от 0 до 5.")
+        else:
+            action(catalog)
+
+
+def catalog_filename():
+    current_folder = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_folder, "catalog.txt")
+
+
+if __name__ == "__main__":
+    run_store(catalog_filename())
+
